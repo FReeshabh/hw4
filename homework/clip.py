@@ -9,7 +9,7 @@ from PIL import Image
 from torch.utils.data import Dataset
 from torch.utils.tensorboard import SummaryWriter
 from transformers import AutoProcessor, Trainer, TrainingArguments
-
+import torch.nn.functional as F
 from .base_vlm import BaseVLM
 from .data import CaptionDataset, MultiChoiceQADataset
 
@@ -102,7 +102,13 @@ class CLIP(nn.Module):
         self.vision_encoder = vision_encoder
         self.text_encoder = text_encoder
         # TODO: implement the rest components
-        raise NotImplementedError("Not implemented")
+        self.vision_hidden_size = vision_encoder.config.hidden_size
+        self.text_hidden_size = text_encoder.config.hidden_size
+
+        self.vision_projection = nn.Linear(self.vision_hidden_size, proj_dim, bias=False)
+        self.text_projection = nn.Linear(self.text_hidden_size)
+        
+        self.logit_scale = nn.Parameter(torch.ones([]) * (1 / temperature))
 
     def encode_image(self, image: torch.Tensor) -> torch.Tensor:
         return self.vision_encoder(image)
@@ -180,8 +186,27 @@ class CLIP(nn.Module):
         Returns:
             TODO: think about the what values should be returned
         """
-        raise NotImplementedError("Not implemented")
+        #1. Encode Images
+        vision_outputs = self.vision_encoder(pixel_values=pixel_values)
+        # Mean Pooling for Vision
+        image_embeds = vision_outputs.last_hidden_state.mean(dim=1)
+        image_embeds = self.vision_projection(image_embeds)
+        image_embeds = image_embeds / image_embeds.norm(p=2, dim=-1, keepdim=True)
+        
+        # 2. Encode Text
+        text_outputs = self.text_encoder(input_ids=input_ids, attention_mask=attention_mask)
+        # Last-Token Pooling for Causal Text Encoder
+        if attention_mask is not None:
+            # The last token is the last '1' in the mask
+            last_indices = attention_mask.sum(dim=1) - 1
+            text_embeds = text_outputs.last_hidden_state[torch.arange(input_ids.shape[0]), last_indices]
+        else:
+            text_embeds = text_outputs.last_hidden_state[:, -1, :]
+            
+        text_embeds = self.text_projection(text_embeds)
+        text_embeds = text_embeds / text_embeds.norm(p=2, dim=-1, keepdim=True)
 
+        return image_embeds, text_embeds, self.logit_scale.exp()
 
 def compute_clip_loss(
     outputs: tuple[torch.Tensor, torch.Tensor, torch.Tensor],
@@ -199,8 +224,21 @@ def compute_clip_loss(
     Returns:
         The loss for the CLIP model.
     """
-    raise NotImplementedError("Not implemented")
-
+    image_embeds, text_embeds, logit_scale = outputs
+    
+    # Calculate similarity matrix: (Batch, Batch)
+    logits_per_image = logit_scale * torch.matmul(image_embeds, text_embeds.t())
+    logits_per_text = logits_per_image.t()
+    
+    # Create labels: [0, 1, 2, ... BatchSize-1]
+    batch_size = image_embeds.size(0)
+    ground_truth = torch.arange(batch_size, dtype=torch.long, device=image_embeds.device)
+    
+    # Symmetric Cross Entropy Loss
+    loss_img = F.cross_entropy(logits_per_image, ground_truth)
+    loss_txt = F.cross_entropy(logits_per_text, ground_truth)
+    
+    return (loss_img + loss_txt) / 2
 
 def get_target_modules_for_lora(model: nn.Module) -> list[str]:
     target_modules = []

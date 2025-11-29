@@ -76,6 +76,7 @@ def generate_caption(info_path: str, view_index: int, img_width: int = 150, img_
         # Vertical (Front/Behind)
         # Smaller Y = Higher in image = Further away = Front
         v_pos = "in front of" if ky < ego_y else "behind"
+        
 
         captions.append({
             "caption": f"{k_name} is to the {h_pos} of the ego car.",
