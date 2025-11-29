@@ -301,6 +301,23 @@ def train(
     train_dataset = CaptionDataset("train", data_dir)
     train_dataset = CaptionDatasetForTraining(train_dataset, processor)
 
+    # training_args = TrainingArguments(
+    #     output_dir=output_dir,
+    #     logging_dir=output_dir,
+    #     report_to="tensorboard",
+    #     num_train_epochs=num_train_epochs,
+    #     per_device_train_batch_size=per_device_train_batch_size,
+    #     gradient_accumulation_steps=gradient_accumulation_steps,
+    #     gradient_checkpointing=True,
+    #     learning_rate=learning_rate,
+    #     bf16=True if device == "cuda" else False,
+    #     logging_steps=1,
+    #     save_strategy="steps",
+    #     save_steps=50,
+    #     save_total_limit=2,
+    #     label_names=["labels"],
+    #     dataloader_num_workers=num_workers,
+    # )
     training_args = TrainingArguments(
         output_dir=output_dir,
         logging_dir=output_dir,
@@ -310,13 +327,19 @@ def train(
         gradient_accumulation_steps=gradient_accumulation_steps,
         gradient_checkpointing=True,
         learning_rate=learning_rate,
-        bf16=True if device == "cuda" else False,
+        
+        # --- KAGGLE FIX ---
+        bf16=False,   
+        fp16=True,    
+        # ----------------
+        
         logging_steps=1,
         save_strategy="steps",
         save_steps=50,
         save_total_limit=2,
         label_names=["labels"],
         dataloader_num_workers=num_workers,
+        dataloader_persistent_workers=True, # Recommended for speed
     )
 
     trainer = Trainer(
