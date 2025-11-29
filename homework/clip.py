@@ -108,7 +108,8 @@ class CLIP(nn.Module):
         self.vision_projection = nn.Linear(self.vision_hidden_size, proj_dim, bias=False)
         self.text_projection = nn.Linear(self.text_hidden_size, proj_dim, bias=False)
 
-        self.logit_scale = nn.Parameter(torch.ones([]) * (1 / temperature))
+        # self.logit_scale = nn.Parameter(torch.ones([]) * (1 / temperature))
+        self.logit_scale = nn.Parameter(torch.tensor(1 / temperature).log())
 
     def encode_image(self, image: torch.Tensor) -> torch.Tensor:
         return self.vision_encoder(image)
@@ -259,7 +260,7 @@ def train(
     output_dir: str = "clip",
     num_train_epochs: float = 5,  # 0.05 for debugging purpose, increase this once the dry run works
     # per_device_train_batch_size: int = 1024,
-    per_device_train_batch_size: int = 256,
+    per_device_train_batch_size: int = 128,
     gradient_accumulation_steps: int = 1,
     learning_rate: float = 5e-4,
     num_workers: int = 2,
