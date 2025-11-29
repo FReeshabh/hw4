@@ -4,8 +4,7 @@ from pathlib import Path
 import fire
 from matplotlib import pyplot as plt
 
-from .generate_qa import draw_detections, extract_frame_info, extract_track_info, extract_kart_objects, generate_data
-
+from .generate_qa import draw_detections, extract_frame_info, extract_kart_objects, extract_track_info
 
 def generate_caption(info_path: str, view_index: int, img_width: int = 150, img_height: int = 100) -> list:
     """
