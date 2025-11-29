@@ -106,8 +106,8 @@ class CLIP(nn.Module):
         self.text_hidden_size = text_encoder.config.hidden_size
 
         self.vision_projection = nn.Linear(self.vision_hidden_size, proj_dim, bias=False)
-        self.text_projection = nn.Linear(self.text_hidden_size)
-        
+        self.text_projection = nn.Linear(self.text_hidden_size, proj_dim, bias=False)
+
         self.logit_scale = nn.Parameter(torch.ones([]) * (1 / temperature))
 
     def encode_image(self, image: torch.Tensor) -> torch.Tensor:
