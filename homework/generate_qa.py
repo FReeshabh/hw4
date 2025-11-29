@@ -190,7 +190,11 @@ def extract_kart_objects(
         # Get Kart Name
         kart_name = "unknown"
         if karts_metadata and track_id < len(karts_metadata):
-            kart_name = karts_metadata[track_id].get("name", "unknown")
+            item = karts_metadata[track_id]
+            if isinstance(item, dict):
+                kart_name = item.get("name", "unknown")
+            elif isinstance(item, str):
+                kart_name = item
 
         # Identify Ego Car (Track ID 0)
         is_ego = (track_id == 0)
@@ -361,6 +365,45 @@ def generate_qa_pairs(info_path: str, view_index: int, img_width: int = 150, img
     })
 
     return qa_pairs
+def generate_data(data_dir: str = "data/train", output_file: str = "data/train/train_qa_pairs.json"):
+    """
+    Bulk generate QA pairs for all files in a directory.
+    """
+    path = Path(data_dir)
+    all_qa_pairs = []
+    
+    # Get all info files
+    info_files = sorted(list(path.glob("*_info.json")))
+    print(f"Found {len(info_files)} info files in {data_dir}")
+    
+    for info_file in info_files:
+        try:
+            # Read how many views this file has
+            with open(info_file) as f:
+                data = json.load(f)
+                num_views = len(data.get("detections", []))
+            
+            # Generate pairs for every view in this file
+            for i in range(num_views):
+                # Check if the image actually exists before generating
+                base_name = info_file.stem.replace("_info", "")
+                img_name = f"{base_name}_{i:02d}_im.jpg"
+                if (path / img_name).exists():
+                    # Call your existing single-image function
+                    pairs = generate_qa_pairs(str(info_file), i)
+                    all_qa_pairs.extend(pairs)
+                    
+        except Exception as e:
+            print(f"Error processing {info_file}: {e}")
+            continue
+            
+    # Save the huge list to a JSON file
+    output_path = Path(output_file)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(output_path, 'w') as f:
+        json.dump(all_qa_pairs, f, indent=2)
+        
+    print(f"Successfully generated {len(all_qa_pairs)} QA pairs saved to {output_file}")
 
 def check_qa_pairs(info_file: str, view_index: int):
     """
@@ -406,7 +449,8 @@ You probably need to add additional commands to Fire below.
 
 
 def main():
-    fire.Fire({"check": check_qa_pairs})
+    fire.Fire({"check": check_qa_pairs,
+    "generate": generate_data})
 
 
 if __name__ == "__main__":
