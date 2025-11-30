@@ -327,6 +327,13 @@ def train(
     dataloader_num_workers=num_workers,
     # dataloader_persistent_workers=True, # Recommended for speed
     # )
+    # --- SURGICAL FIX FOR RESUMING ---
+    # Force load the projection weights from checkpoint-150
+    checkpoint_path = Path(output_dir) / "checkpoint-150"
+    if checkpoint_path.exists():
+        print(f"--- SURGERY: Manually loading 'eyes' from {checkpoint_path} ---")
+        model.model.load_pretrained(checkpoint_path)
+    # ---------------------------------
 
     trainer = Trainer(
         model=model,
