@@ -258,7 +258,7 @@ def get_target_modules_for_lora(model: nn.Module) -> list[str]:
 def train(
     data_dir: Path | None = None,
     output_dir: str = "clip",
-    num_train_epochs: float = 2.5,  # 0.05 for debugging purpose, increase this once the dry run works
+    num_train_epochs: float = 3.2,  # 0.05 for debugging purpose, increase this once the dry run works
     per_device_train_batch_size: int = 512,
     gradient_accumulation_steps: int = 1,
     learning_rate: float = 5e-4,
@@ -329,7 +329,7 @@ def train(
     # )
     # --- SURGICAL FIX FOR RESUMING ---
     # Force load the projection weights from checkpoint-150
-    checkpoint_path = Path(output_dir) / "checkpoint-494"
+    checkpoint_path = Path(output_dir) / "checkpoint-618"
     if checkpoint_path.exists():
         print(f"--- SURGERY: Manually loading 'eyes' from {checkpoint_path} ---")
         model.model.load_pretrained(checkpoint_path)
