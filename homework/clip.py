@@ -336,8 +336,8 @@ def train(
         compute_loss_func=compute_clip_loss,
     )
 
-    # trainer.train(resume_from_checkpoint=True)
-    trainer.train()
+    trainer.train(resume_from_checkpoint=True)
+    # trainer.train()
 
     # save model
     trainer.save_model(output_dir)
