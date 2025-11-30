@@ -258,8 +258,8 @@ def get_target_modules_for_lora(model: nn.Module) -> list[str]:
 def train(
     data_dir: Path | None = None,
     output_dir: str = "clip",
-    num_train_epochs: float = 3,  # 0.05 for debugging purpose, increase this once the dry run works
-    per_device_train_batch_size: int = 256,
+    num_train_epochs: float = 0.6,  # 0.05 for debugging purpose, increase this once the dry run works
+    per_device_train_batch_size: int = 512,
     gradient_accumulation_steps: int = 1,
     learning_rate: float = 5e-4,
     num_workers: int = 4,
@@ -336,8 +336,8 @@ def train(
         compute_loss_func=compute_clip_loss,
     )
 
-    trainer.train(resume_from_checkpoint=True)
-    # trainer.train()
+    # trainer.train(resume_from_checkpoint=True)
+    trainer.train()
 
     # save model
     trainer.save_model(output_dir)
