@@ -308,6 +308,7 @@ def generate_qa_pairs(info_path: str, view_index: int, img_width: int = 150, img
     front_count = 0
     behind_count = 0
 
+
     for k in karts:
         if k["instance_id"] == ego_kart["instance_id"]:
             continue
@@ -315,16 +316,14 @@ def generate_qa_pairs(info_path: str, view_index: int, img_width: int = 150, img
         kx, ky = k["center"]
         k_name = k["kart_name"]
         
-        # 1. Left/Right
         h_pos = "left" if kx < ego_x else "right"
         if h_pos == "left": left_count += 1
         else: right_count += 1
         
-        v_pos = "back" if ky < ego_y else "front"
+        v_pos = "front" if ky < ego_y else "behind"
         if v_pos == "front": front_count += 1
         else: behind_count += 1
 
-        # Q4: Specific Relative Questions
         qa_pairs.append({
             "question": f"Is {k_name} to the left or right of the ego car?",
             "answer": h_pos,
@@ -332,16 +331,16 @@ def generate_qa_pairs(info_path: str, view_index: int, img_width: int = 150, img
         })
         qa_pairs.append({
             "question": f"Is {k_name} in front of or behind the ego car?",
-            "answer": v_pos,
+            "answer": v_pos,  # Returns "front" or "behind"
             "image_file": image_rel_path
         })
         qa_pairs.append({
             "question": f"Where is {k_name} relative to the ego car?",
-            "answer": f"{v_pos} and {h_pos}", 
+            # Standard Format: Space separator (e.g., "front right")
+            "answer": f"{v_pos} {h_pos}", 
             "image_file": image_rel_path
         })
 
-    # Q5: Counting Relative Questions
     qa_pairs.append({
         "question": "How many karts are to the left of the ego car?",
         "answer": str(left_count),

@@ -73,8 +73,6 @@ def generate_caption(info_path: str, view_index: int, img_width: int = 150, img_
         # Horizontal (Left/Right)
         h_pos = "left" if kx < ego_x else "right"
         
-        # Vertical (Front/Behind)
-        # Smaller Y = Higher in image = Further away = Front
         v_pos = "in front of" if ky < ego_y else "behind"
         
 
