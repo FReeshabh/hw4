@@ -166,7 +166,8 @@ def train(
     model.print_trainable_parameters()
     model.config.use_cache = False
     model.enable_input_require_grads()
-    model.train()
+    # model.train()
+    model.train(resume_from_checkpoint=True)
 
     # Prepare datasets
     train_dataset = VQADataset(train_dataset_name, data_dir)
