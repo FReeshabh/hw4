@@ -10,6 +10,10 @@ from torch.utils.data import Dataset
 from torch.utils.tensorboard import SummaryWriter
 from transformers import AutoProcessor, Trainer, TrainingArguments
 import torch.nn.functional as F
+try:
+    from safetensors.torch import load_file as load_safetensors
+except ImportError:  # pragma: no cover - safetensors should be available, but guard anyway
+    load_safetensors = None
 from .base_vlm import BaseVLM
 from .data import CaptionDataset, MultiChoiceQADataset
 
@@ -269,6 +273,16 @@ def train(
     output_dir = Path(__file__).parent / output_dir
     output_dir.mkdir(parents=True, exist_ok=True)
 
+    # Detect the most recent checkpoint (if any)
+    checkpoint_dirs = sorted(
+        [d for d in output_dir.glob("checkpoint-*") if d.is_dir()],
+        key=lambda x: int(x.name.split("-")[1]) if x.name.split("-")[1].isdigit() else -1,
+        reverse=True,
+    )
+    resume_checkpoint: Path | None = checkpoint_dirs[0] if checkpoint_dirs else None
+    if resume_checkpoint:
+        print(f"[train] Detected checkpoint at {resume_checkpoint}")
+
     # Initialize TensorBoard writer
     tensorboard_dir = output_dir / "tensorboard"
     tensorboard_dir.mkdir(exist_ok=True)
@@ -297,6 +311,21 @@ def train(
     model.gradient_checkpointing_enable()
     model.enable_input_require_grads()
 
+    if resume_checkpoint:
+        adapter_bin = resume_checkpoint / "pytorch_model.bin"
+        adapter_safetensors = resume_checkpoint / "adapter_model.safetensors"
+        state_dict = None
+        if adapter_bin.exists():
+            state_dict = torch.load(adapter_bin, map_location="cpu")
+        elif adapter_safetensors.exists() and load_safetensors is not None:
+            state_dict = load_safetensors(str(adapter_safetensors))
+        if state_dict is not None:
+            missing, unexpected = model.load_state_dict(state_dict, strict=False)
+            print(f"[train] Loaded checkpoint weights (missing={len(missing)}, unexpected={len(unexpected)})")
+        else:
+            print(f"[train] Found checkpoint but no state dict file at {resume_checkpoint}")
+        model.model.load_pretrained(resume_checkpoint)
+
     # load dataset
     train_dataset = CaptionDataset("train", data_dir)
     train_dataset = CaptionDatasetForTraining(train_dataset, processor)
@@ -318,21 +347,6 @@ def train(
         label_names=["labels"],
         dataloader_num_workers=num_workers,
     )
-    
-    # Find the latest checkpoint to resume from
-    checkpoint_dirs = sorted(
-        [d for d in output_dir.glob("checkpoint-*") if d.is_dir()],
-        key=lambda x: int(x.name.split("-")[1]) if x.name.split("-")[1].isdigit() else -1,
-        reverse=True
-    )
-    
-    if checkpoint_dirs:
-        latest_checkpoint = checkpoint_dirs[0]
-        print(f"Found checkpoint: {latest_checkpoint}")
-        # Load the projection weights from the latest checkpoint
-        if (latest_checkpoint / "additional_weights.pt").exists():
-            print(f"Loading projection weights from {latest_checkpoint}")
-            model.model.load_pretrained(latest_checkpoint)
 
     trainer = Trainer(
         model=model,
@@ -342,7 +356,7 @@ def train(
         compute_loss_func=compute_clip_loss,
     )
 
-    trainer.train(resume_from_checkpoint=True)
+    trainer.train(resume_from_checkpoint=str(resume_checkpoint) if resume_checkpoint else None)
     # trainer.train()
 
     # save model
