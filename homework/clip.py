@@ -329,7 +329,7 @@ def train(
     # )
     # --- SURGICAL FIX FOR RESUMING ---
     # Force load the projection weights from checkpoint-150
-    checkpoint_path = Path(output_dir) / "checkpoint-618"
+    checkpoint_path = Path(output_dir) / "checkpoint-195"
     if checkpoint_path.exists():
         print(f"--- SURGERY: Manually loading 'eyes' from {checkpoint_path} ---")
         model.model.load_pretrained(checkpoint_path)
@@ -343,8 +343,8 @@ def train(
         compute_loss_func=compute_clip_loss,
     )
 
-    # trainer.train(resume_from_checkpoint=True)
-    trainer.train()
+    trainer.train(resume_from_checkpoint=True)
+    # trainer.train()
 
     # save model
     trainer.save_model(output_dir)
