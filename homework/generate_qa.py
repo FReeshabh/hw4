@@ -315,13 +315,12 @@ def generate_qa_pairs(info_path: str, view_index: int, img_width: int = 150, img
         kx, ky = k["center"]
         k_name = k["kart_name"]
         
-        # Horizontal (Left/Right)
+        # 1. Left/Right
         h_pos = "left" if kx < ego_x else "right"
         if h_pos == "left": left_count += 1
         else: right_count += 1
         
-        # Vertical (Front/Behind)
-        v_pos = "front" if ky < ego_y else "behind"
+        v_pos = "back" if ky < ego_y else "front"
         if v_pos == "front": front_count += 1
         else: behind_count += 1
 
@@ -338,7 +337,7 @@ def generate_qa_pairs(info_path: str, view_index: int, img_width: int = 150, img
         })
         qa_pairs.append({
             "question": f"Where is {k_name} relative to the ego car?",
-            "answer": f"{v_pos} {h_pos}",
+            "answer": f"{v_pos} and {h_pos}", 
             "image_file": image_rel_path
         })
 
