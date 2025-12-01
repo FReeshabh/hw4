@@ -318,22 +318,21 @@ def train(
         label_names=["labels"],
         dataloader_num_workers=num_workers,
     )
-        
-    logging_steps=1,
-    save_strategy="steps",
-    save_steps=50,
-    save_total_limit=2,
-    label_names=["labels"],
-    dataloader_num_workers=num_workers,
-    # dataloader_persistent_workers=True, # Recommended for speed
-    # )
-    # --- SURGICAL FIX FOR RESUMING ---
-    # Force load the projection weights from checkpoint-150
-    checkpoint_path = Path(output_dir) / "checkpoint-520"
-    if checkpoint_path.exists():
-        print(f"--- SURGERY: Manually loading 'eyes' from {checkpoint_path} ---")
-        model.model.load_pretrained(checkpoint_path)
-    # ---------------------------------
+    
+    # Find the latest checkpoint to resume from
+    checkpoint_dirs = sorted(
+        [d for d in output_dir.glob("checkpoint-*") if d.is_dir()],
+        key=lambda x: int(x.name.split("-")[1]) if x.name.split("-")[1].isdigit() else -1,
+        reverse=True
+    )
+    
+    if checkpoint_dirs:
+        latest_checkpoint = checkpoint_dirs[0]
+        print(f"Found checkpoint: {latest_checkpoint}")
+        # Load the projection weights from the latest checkpoint
+        if (latest_checkpoint / "additional_weights.pt").exists():
+            print(f"Loading projection weights from {latest_checkpoint}")
+            model.model.load_pretrained(latest_checkpoint)
 
     trainer = Trainer(
         model=model,
