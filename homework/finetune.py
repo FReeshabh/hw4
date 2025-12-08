@@ -1,4 +1,5 @@
 from pathlib import Path
+import re
 
 import torch
 import torch.nn as nn
@@ -105,8 +106,29 @@ class VQADatasetForTraining(Dataset):
             "pixel_values": inputs["pixel_values"].squeeze(0),
             "labels": labels.long(),
         }
+def get_latest_checkpoint(output_dir: Path | str) -> Optional[Path]:
+    output_path = Path(output_dir)
+    
+    if not output_path.is_dir():
+        print(f"Error: Directory not found at {output_path}")
+        return None
 
+    CHECKPOINT_PATTERN = re.compile(r"^checkpoint-(\d+)$")
+    
+    checkpoints = []
+    
+    for subdirectory in output_path.iterdir():
+        if subdirectory.is_dir():
+            match = CHECKPOINT_PATTERN.match(subdirectory.name)
+            if match:
+                step_number = int(match.group(1))
+                checkpoints.append((step_number, subdirectory))
 
+    if not checkpoints:
+        return None
+    latest_checkpoint_path = max(checkpoints, key=lambda x: x[0])[1]
+    return latest_checkpoint_path
+    
 def train(
     data_dir: Path | None = None,
     train_dataset_name: str = "train",
@@ -203,7 +225,16 @@ def train(
     )
 
     # Train the model
-    trainer.train()
+    # In the `train` function, just before trainer.train():
+    latest_checkpoint = get_latest_checkpoint(output_dir)
+
+    if latest_checkpoint is not None:
+        print(f"Resuming training from checkpoint: {latest_checkpoint}")
+        trainer.train(resume_from_checkpoint=latest_checkpoint)
+    else:
+        trainer.train()
+
+    # trainer.train()
 
     # Save the model
     trainer.save_model(output_dir)
