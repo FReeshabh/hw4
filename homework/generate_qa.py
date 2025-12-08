@@ -332,10 +332,9 @@ def generate_qa_pairs(info_path: str, view_index: int, img_width: int = 150, img
             "image_file": image_rel_path
         })
         
-        # Q5: Combined Position (Format: "front and left")
         qa_pairs.append({
             "question": f"Where is {k_name} relative to the ego car?",
-            "answer": f"{v_pos} and {h_pos}",  # CRITICAL FORMAT FIX
+            "answer": f"{v_pos} and {h_pos}", 
             "image_file": image_rel_path
         })
 
@@ -344,6 +343,33 @@ def generate_qa_pairs(info_path: str, view_index: int, img_width: int = 150, img
     qa_pairs.append({"question": "How many karts are to the right of the ego car?", "answer": str(right_count), "image_file": image_rel_path})
     qa_pairs.append({"question": "How many karts are in front of the ego car?", "answer": str(front_count), "image_file": image_rel_path})
     qa_pairs.append({"question": "How many karts are behind the ego car?", "answer": str(back_count), "image_file": image_rel_path})
+
+    distances = []
+    for k in karts:
+        if k["instance_id"] == ego_kart["instance_id"]:
+            continue
+            
+        kx, ky = k["center"]
+        # Calculate Euclidean distance squared (faster than sqrt)
+        distance_sq = (kx - ego_x)**2 + (ky - ego_y)**2
+        distances.append({"kart_name": k["kart_name"], "distance_sq": distance_sq})
+        
+    if not distances:
+        return qa_pairs
+ 
+    nearest_kart = min(distances, key=lambda d: d["distance_sq"])["kart_name"]
+    farthest_kart = max(distances, key=lambda d: d["distance_sq"])["kart_name"]
+    qa_pairs.append({
+        "question": "Which kart is the closest to the ego car?",
+        "answer": nearest_kart,
+        "image_file": image_rel_path
+    })
+
+    qa_pairs.append({
+        "question": "Which kart is the farthest from the ego car?",
+        "answer": farthest_kart,
+        "image_file": image_rel_path
+    })
 
     return qa_pairs
 
