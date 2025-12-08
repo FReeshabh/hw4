@@ -152,61 +152,8 @@ def extract_kart_objects(
         - is_center_kart: Boolean indicating if this is the kart closest to image center
     """
 
-    with open(info_path, 'r') as f:
-        data = json.load(f)
+    raise NotImplementedError("Not implemented")
 
-    if view_index >= len(data["detections"]):
-        return []
-
-    detections = data["detections"][view_index]
-    karts_metadata = data.get("karts", [])
-    
-    kart_objects = []
-    # Scaling factors
-    scale_x = img_width / ORIGINAL_WIDTH
-    scale_y = img_height / ORIGINAL_HEIGHT
-
-    for det in detections:
-        class_id, track_id, x1, y1, x2, y2 = det
-        class_id = int(class_id)
-        track_id = int(track_id)
-
-        # We only care about Karts (class_id 1)
-        if class_id != 1:
-            continue
-
-        # Scale to current image size
-        sx1, sy1 = x1 * scale_x, y1 * scale_y
-        sx2, sy2 = x2 * scale_x, y2 * scale_y
-        
-        # Filter small/invalid boxes
-        if (sx2 - sx1) < min_box_size or (sy2 - sy1) < min_box_size:
-            continue
-
-        # Calculate center
-        cx = (sx1 + sx2) / 2
-        cy = (sy1 + sy2) / 2
-
-        # Get Kart Name
-        kart_name = "unknown"
-        if karts_metadata and track_id < len(karts_metadata):
-            item = karts_metadata[track_id]
-            if isinstance(item, dict):
-                kart_name = item.get("name", "unknown")
-            elif isinstance(item, str):
-                kart_name = item
-
-        # Identify Ego Car (Track ID 0)
-        is_ego = (track_id == 0)
-
-        kart_objects.append({
-            "instance_id": track_id,
-            "kart_name": kart_name,
-            "center": (cx, cy),
-            "is_center_kart": is_ego
-        })
-
-    return kart_objects
 
 def extract_track_info(info_path: str) -> str:
     """
@@ -219,10 +166,8 @@ def extract_track_info(info_path: str) -> str:
         Track name as a string
     """
 
-    # === FIX: Actually read the JSON file ===
-    with open(info_path, 'r') as f:
-        data = json.load(f)
-    return data.get('track', data.get('track_name', 'unknown'))
+    raise NotImplementedError("Not implemented")
+
 
 def generate_qa_pairs(info_path: str, view_index: int, img_width: int = 150, img_height: int = 100) -> list:
     """
@@ -257,151 +202,8 @@ def generate_qa_pairs(info_path: str, view_index: int, img_width: int = 150, img
     # How many karts are in front of the ego car?
     # How many karts are behind the ego car?
 
-     # get the paths right
-    path_obj = Path(info_path)
-    base_name = path_obj.stem.replace("_info", "")
-    image_filename = f"{base_name}_{view_index:02d}_im.jpg"
-    
-    # The 'image_file' field in JSON usually wants relative path like "train/00000_00_im.jpg"
-    parent_dir = path_obj.parent.name # e.g., "train"
-    image_rel_path = f"{parent_dir}/{image_filename}"
-    
-    track_name = extract_track_info(info_path)
-    karts = extract_kart_objects(info_path, view_index, img_width, img_height)
+    raise NotImplementedError("Not implemented")
 
-    # Find Ego Kart
-    ego_kart = next((k for k in karts if k["is_center_kart"]), None)
-    
-    qa_pairs = []
-
-    # Q1: Ego car Identity
-    if ego_kart:
-        qa_pairs.append({
-            "question": "What kart is the ego car?",
-            "answer": str(ego_kart["kart_name"]),
-            "image_file": image_rel_path
-        })
-
-    # Q2: Total Karts
-    qa_pairs.append({
-        "question": "How many karts are there in the scenario?",
-        "answer": str(len(karts)),
-        "image_file": image_rel_path
-    })
-
-    # Q3: Track Name
-    qa_pairs.append({
-        "question": "What track is this?",
-        "answer": str(track_name),
-        "image_file": image_rel_path
-    })
-
-    if not ego_kart:
-        return qa_pairs
-
-    # Relative Position Logic
-    ego_x, ego_y = ego_kart["center"]
-    
-    # Counters
-    left_count = 0
-    right_count = 0
-    front_count = 0
-    behind_count = 0
-
-
-    for k in karts:
-        if k["instance_id"] == ego_kart["instance_id"]:
-            continue
-            
-        kx, ky = k["center"]
-        k_name = k["kart_name"]
-        
-        h_pos = "left" if kx < ego_x else "right"
-        if h_pos == "left": left_count += 1
-        else: right_count += 1
-        
-        v_pos = "front" if ky < ego_y else "behind"
-        if v_pos == "front": front_count += 1
-        else: behind_count += 1
-
-        qa_pairs.append({
-            "question": f"Is {k_name} to the left or right of the ego car?",
-            "answer": h_pos,
-            "image_file": image_rel_path
-        })
-        qa_pairs.append({
-            "question": f"Is {k_name} in front of or behind the ego car?",
-            "answer": v_pos,  # Returns "front" or "behind"
-            "image_file": image_rel_path
-        })
-        qa_pairs.append({
-            "question": f"Where is {k_name} relative to the ego car?",
-            # Standard Format: Space separator (e.g., "front right")
-            "answer": f"{v_pos} {h_pos}", 
-            "image_file": image_rel_path
-        })
-
-    qa_pairs.append({
-        "question": "How many karts are to the left of the ego car?",
-        "answer": str(left_count),
-        "image_file": image_rel_path
-    })
-    qa_pairs.append({
-        "question": "How many karts are to the right of the ego car?",
-        "answer": str(right_count),
-        "image_file": image_rel_path
-    })
-    qa_pairs.append({
-        "question": "How many karts are in front of the ego car?",
-        "answer": str(front_count),
-        "image_file": image_rel_path
-    })
-    qa_pairs.append({
-        "question": "How many karts are behind the ego car?",
-        "answer": str(behind_count),
-        "image_file": image_rel_path
-    })
-
-    return qa_pairs
-def generate_data(data_dir: str = "data/train", output_file: str = "data/train/train_qa_pairs.json"):
-    """
-    Bulk generate QA pairs for all files in a directory.
-    """
-    path = Path(data_dir)
-    all_qa_pairs = []
-    
-    # Get all info files
-    info_files = sorted(list(path.glob("*_info.json")))
-    print(f"Found {len(info_files)} info files in {data_dir}")
-    
-    for info_file in info_files:
-        try:
-            # Read how many views this file has
-            with open(info_file) as f:
-                data = json.load(f)
-                num_views = len(data.get("detections", []))
-            
-            # Generate pairs for every view in this file
-            for i in range(num_views):
-                # Check if the image actually exists before generating
-                base_name = info_file.stem.replace("_info", "")
-                img_name = f"{base_name}_{i:02d}_im.jpg"
-                if (path / img_name).exists():
-                    # Call your existing single-image function
-                    pairs = generate_qa_pairs(str(info_file), i)
-                    all_qa_pairs.extend(pairs)
-                    
-        except Exception as e:
-            print(f"Error processing {info_file}: {e}")
-            continue
-            
-    # Save the huge list to a JSON file
-    output_path = Path(output_file)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(output_path, 'w') as f:
-        json.dump(all_qa_pairs, f, indent=2)
-        
-    print(f"Successfully generated {len(all_qa_pairs)} QA pairs saved to {output_file}")
 
 def check_qa_pairs(info_file: str, view_index: int):
     """
@@ -447,8 +249,7 @@ You probably need to add additional commands to Fire below.
 
 
 def main():
-    fire.Fire({"check": check_qa_pairs,
-    "generate": generate_data})
+    fire.Fire({"check": check_qa_pairs})
 
 
 if __name__ == "__main__":

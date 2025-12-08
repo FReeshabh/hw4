@@ -9,11 +9,7 @@ from PIL import Image
 from torch.utils.data import Dataset
 from torch.utils.tensorboard import SummaryWriter
 from transformers import AutoProcessor, Trainer, TrainingArguments
-import torch.nn.functional as F
-try:
-    from safetensors.torch import load_file as load_safetensors
-except ImportError:  # pragma: no cover - safetensors should be available, but guard anyway
-    load_safetensors = None
+
 from .base_vlm import BaseVLM
 from .data import CaptionDataset, MultiChoiceQADataset
 
@@ -106,14 +102,7 @@ class CLIP(nn.Module):
         self.vision_encoder = vision_encoder
         self.text_encoder = text_encoder
         # TODO: implement the rest components
-        self.vision_hidden_size = vision_encoder.config.hidden_size
-        self.text_hidden_size = text_encoder.config.hidden_size
-
-        self.vision_projection = nn.Linear(self.vision_hidden_size, proj_dim, bias=False)
-        self.text_projection = nn.Linear(self.text_hidden_size, proj_dim, bias=False)
-
-        # self.logit_scale = nn.Parameter(torch.ones([]) * (1 / temperature))
-        self.logit_scale = nn.Parameter(torch.tensor(1 / temperature).log())
+        raise NotImplementedError("Not implemented")
 
     def encode_image(self, image: torch.Tensor) -> torch.Tensor:
         return self.vision_encoder(image)
@@ -191,27 +180,8 @@ class CLIP(nn.Module):
         Returns:
             TODO: think about the what values should be returned
         """
-        #1. Encode Images
-        vision_outputs = self.vision_encoder(pixel_values=pixel_values)
-        # Mean Pooling for Vision
-        image_embeds = vision_outputs.last_hidden_state.mean(dim=1)
-        image_embeds = self.vision_projection(image_embeds)
-        image_embeds = image_embeds / image_embeds.norm(p=2, dim=-1, keepdim=True)
-        
-        # 2. Encode Text
-        text_outputs = self.text_encoder(input_ids=input_ids, attention_mask=attention_mask)
-        # Last-Token Pooling for Causal Text Encoder
-        if attention_mask is not None:
-            # The last token is the last '1' in the mask
-            last_indices = attention_mask.sum(dim=1) - 1
-            text_embeds = text_outputs.last_hidden_state[torch.arange(input_ids.shape[0]), last_indices]
-        else:
-            text_embeds = text_outputs.last_hidden_state[:, -1, :]
-            
-        text_embeds = self.text_projection(text_embeds)
-        text_embeds = text_embeds / text_embeds.norm(p=2, dim=-1, keepdim=True)
+        raise NotImplementedError("Not implemented")
 
-        return image_embeds, text_embeds, self.logit_scale.exp()
 
 def compute_clip_loss(
     outputs: tuple[torch.Tensor, torch.Tensor, torch.Tensor],
@@ -229,21 +199,8 @@ def compute_clip_loss(
     Returns:
         The loss for the CLIP model.
     """
-    image_embeds, text_embeds, logit_scale = outputs
-    
-    # Calculate similarity matrix: (Batch, Batch)
-    logits_per_image = logit_scale * torch.matmul(image_embeds, text_embeds.t())
-    logits_per_text = logits_per_image.t()
-    
-    # Create labels: [0, 1, 2, ... BatchSize-1]
-    batch_size = image_embeds.size(0)
-    ground_truth = torch.arange(batch_size, dtype=torch.long, device=image_embeds.device)
-    
-    # Symmetric Cross Entropy Loss
-    loss_img = F.cross_entropy(logits_per_image, ground_truth)
-    loss_txt = F.cross_entropy(logits_per_text, ground_truth)
-    
-    return (loss_img + loss_txt) / 2
+    raise NotImplementedError("Not implemented")
+
 
 def get_target_modules_for_lora(model: nn.Module) -> list[str]:
     target_modules = []
@@ -262,8 +219,8 @@ def get_target_modules_for_lora(model: nn.Module) -> list[str]:
 def train(
     data_dir: Path | None = None,
     output_dir: str = "clip",
-    num_train_epochs: float = 5,  # 0.05 for debugging purpose, increase this once the dry run works
-    per_device_train_batch_size: int = 512,
+    num_train_epochs: float = 0.05,  # for debugging purpose, increase this once the dry run works
+    per_device_train_batch_size: int = 1024,
     gradient_accumulation_steps: int = 1,
     learning_rate: float = 5e-4,
     num_workers: int = 16,
@@ -272,16 +229,6 @@ def train(
 
     output_dir = Path(__file__).parent / output_dir
     output_dir.mkdir(parents=True, exist_ok=True)
-
-    # Detect the most recent checkpoint (if any)
-    checkpoint_dirs = sorted(
-        [d for d in output_dir.glob("checkpoint-*") if d.is_dir()],
-        key=lambda x: int(x.name.split("-")[1]) if x.name.split("-")[1].isdigit() else -1,
-        reverse=True,
-    )
-    resume_checkpoint: Path | None = checkpoint_dirs[0] if checkpoint_dirs else None
-    if resume_checkpoint:
-        print(f"[train] Detected checkpoint at {resume_checkpoint}")
 
     # Initialize TensorBoard writer
     tensorboard_dir = output_dir / "tensorboard"
@@ -311,21 +258,6 @@ def train(
     model.gradient_checkpointing_enable()
     model.enable_input_require_grads()
 
-    if resume_checkpoint:
-        adapter_bin = resume_checkpoint / "pytorch_model.bin"
-        adapter_safetensors = resume_checkpoint / "adapter_model.safetensors"
-        state_dict = None
-        if adapter_bin.exists():
-            state_dict = torch.load(adapter_bin, map_location="cpu")
-        elif adapter_safetensors.exists() and load_safetensors is not None:
-            state_dict = load_safetensors(str(adapter_safetensors))
-        if state_dict is not None:
-            missing, unexpected = model.load_state_dict(state_dict, strict=False)
-            print(f"[train] Loaded checkpoint weights (missing={len(missing)}, unexpected={len(unexpected)})")
-        else:
-            print(f"[train] Found checkpoint but no state dict file at {resume_checkpoint}")
-        model.model.load_pretrained(resume_checkpoint)
-
     # load dataset
     train_dataset = CaptionDataset("train", data_dir)
     train_dataset = CaptionDatasetForTraining(train_dataset, processor)
@@ -343,7 +275,7 @@ def train(
         logging_steps=1,
         save_strategy="steps",
         save_steps=50,
-        save_total_limit=5,
+        save_total_limit=2,
         label_names=["labels"],
         dataloader_num_workers=num_workers,
     )
@@ -356,8 +288,7 @@ def train(
         compute_loss_func=compute_clip_loss,
     )
 
-    trainer.train(resume_from_checkpoint=str(resume_checkpoint) if resume_checkpoint else None)
-    # trainer.train()
+    trainer.train()
 
     # save model
     trainer.save_model(output_dir)
