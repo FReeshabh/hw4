@@ -52,7 +52,7 @@ def extract_frame_info(image_path: str) -> tuple[int, int]:
 
 
 def draw_detections(
-    image_path: str, info_path: str, font_scale: float = 0.5, thickness: int = 1, min_box_size: int = 4
+    image_path: str, info_path: str, font_scale: float = 0.5, thickness: int = 1, min_box_size: int = 5
 ) -> np.ndarray:
     """
     Draw detection bounding boxes and labels on the image.
