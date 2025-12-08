@@ -52,7 +52,7 @@ def extract_frame_info(image_path: str) -> tuple[int, int]:
 
 
 def draw_detections(
-    image_path: str, info_path: str, font_scale: float = 0.5, thickness: int = 1, min_box_size: int = 5
+    image_path: str, info_path: str, font_scale: float = 0.5, thickness: int = 1, min_box_size: int = 4
 ) -> np.ndarray:
     """
     Draw detection bounding boxes and labels on the image.
@@ -205,6 +205,7 @@ def extract_kart_objects(
             "center": (cx, cy),
             "is_center_kart": is_ego
         })
+    
 
     return kart_objects
 
@@ -237,27 +238,7 @@ def generate_qa_pairs(info_path: str, view_index: int, img_width: int = 150, img
     Returns:
         List of dictionaries, each containing a question and answer
     """
-    # 1. Ego car question
-    # What kart is the ego car?
 
-    # 2. Total karts question
-    # How many karts are there in the scenario?
-
-    # 3. Track information questions
-    # What track is this?
-
-    # 4. Relative position questions for each kart
-    # Is {kart_name} to the left or right of the ego car?
-    # Is {kart_name} in front of or back the ego car?
-    # Where is {kart_name} relative to the ego car?
-
-    # 5. Counting questions
-    # How many karts are to the left of the ego car?
-    # How many karts are to the right of the ego car?
-    # How many karts are in front of the ego car?
-    # How many karts are back the ego car?
-
-     # get the paths right
     path_obj = Path(info_path)
     base_name = path_obj.stem.replace("_info", "")
     image_filename = f"{base_name}_{view_index:02d}_im.jpg"
@@ -273,6 +254,27 @@ def generate_qa_pairs(info_path: str, view_index: int, img_width: int = 150, img
     ego_kart = next((k for k in karts if k["is_center_kart"]), None)
     
     qa_pairs = []
+
+    if not ego_kart:
+        return qa_pairs
+    ego_x, ego_y = ego_kart["center"]
+
+    distances = []
+    for k in karts:
+        if k["instance_id"] == ego_kart["instance_id"]:
+            continue
+            
+        kx, ky = k["center"]
+        # Calculate Euclidean distance squared (faster than sqrt)
+        distance_sq = (kx - ego_x)**2 + (ky - ego_y)**2
+        distances.append({"kart_name": k["kart_name"], "distance_sq": distance_sq})
+        
+    if not distances:
+        return qa_pairs
+        
+    # Find nearest and farthest kart names
+    nearest_kart = min(distances, key=lambda d: d["distance_sq"])["kart_name"]
+    farthest_kart = max(distances, key=lambda d: d["distance_sq"])["kart_name"]
 
     # Q1: Ego car Identity
     if ego_kart:
@@ -293,6 +295,20 @@ def generate_qa_pairs(info_path: str, view_index: int, img_width: int = 150, img
     qa_pairs.append({
         "question": "What track is this?",
         "answer": str(track_name),
+        "image_file": image_rel_path
+    })
+
+    # New Q6: Nearest Kart
+    qa_pairs.append({
+        "question": "Which kart is the closest to the ego car?",
+        "answer": nearest_kart,
+        "image_file": image_rel_path
+    })
+
+    # New Q7: Farthest Kart
+    qa_pairs.append({
+        "question": "Which kart is the farthest from the ego car?",
+        "answer": farthest_kart,
         "image_file": image_rel_path
     })
 
