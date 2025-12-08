@@ -106,7 +106,7 @@ class VQADatasetForTraining(Dataset):
             "pixel_values": inputs["pixel_values"].squeeze(0),
             "labels": labels.long(),
         }
-def get_latest_checkpoint(output_dir: Path | str) -> Optional[Path]:
+def get_latest_checkpoint(output_dir: Path | str):
     output_path = Path(output_dir)
     
     if not output_path.is_dir():
@@ -128,7 +128,7 @@ def get_latest_checkpoint(output_dir: Path | str) -> Optional[Path]:
         return None
     latest_checkpoint_path = max(checkpoints, key=lambda x: x[0])[1]
     return latest_checkpoint_path
-    
+
 def train(
     data_dir: Path | None = None,
     train_dataset_name: str = "train",
