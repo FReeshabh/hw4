@@ -250,80 +250,54 @@ def generate_qa_pairs(info_path: str, view_index: int, img_width: int = 150, img
     track_name = extract_track_info(info_path)
     karts = extract_kart_objects(info_path, view_index, img_width, img_height)
 
+    qa_pairs = []
     # Find Ego Kart
     ego_kart = next((k for k in karts if k["is_center_kart"]), None)
-    
-    qa_pairs = []
-
-    if not ego_kart:
-        return qa_pairs
-    ego_x, ego_y = ego_kart["center"]
-
-    distances = []
-    for k in karts:
-        if k["instance_id"] == ego_kart["instance_id"]:
-            continue
-            
-        kx, ky = k["center"]
-        # Calculate Euclidean distance squared (faster than sqrt)
-        distance_sq = (kx - ego_x)**2 + (ky - ego_y)**2
-        distances.append({"kart_name": k["kart_name"], "distance_sq": distance_sq})
-        
-    if not distances:
-        return qa_pairs
-        
-    # Find nearest and farthest kart names
-    nearest_kart = min(distances, key=lambda d: d["distance_sq"])["kart_name"]
-    farthest_kart = max(distances, key=lambda d: d["distance_sq"])["kart_name"]
-
-    # Q1: Ego car Identity
     if ego_kart:
+        # Template list for augmentation
+        questions = [
+            "What kart is the ego car?",
+            "Which kart is the player driving?",
+            "Identify the ego agent."
+        ]
+        for q in questions:
+            qa_pairs.append({
+                "question": q,
+                "answer": str(ego_kart["kart_name"]),
+                "image_file": image_rel_path
+            })
+    questions = [
+        "How many karts are there in the scenario?",
+        "Count the karts in the image.",
+        "What is the total number of karts visible?"
+    ]
+    for q in questions:
         qa_pairs.append({
-            "question": "What kart is the ego car?",
-            "answer": str(ego_kart["kart_name"]),
+            "question": q,
+            "answer": str(len(karts)),
             "image_file": image_rel_path
         })
-
-    # Q2: Total Karts
-    qa_pairs.append({
-        "question": "How many karts are there in the scenario?",
-        "answer": str(len(karts)),
-        "image_file": image_rel_path
-    })
-
-    # Q3: Track Name
-    qa_pairs.append({
-        "question": "What track is this?",
-        "answer": str(track_name),
-        "image_file": image_rel_path
-    })
-
-    # New Q6: Nearest Kart
-    qa_pairs.append({
-        "question": "Which kart is the closest to the ego car?",
-        "answer": nearest_kart,
-        "image_file": image_rel_path
-    })
-
-    # New Q7: Farthest Kart
-    qa_pairs.append({
-        "question": "Which kart is the farthest from the ego car?",
-        "answer": farthest_kart,
-        "image_file": image_rel_path
-    })
-
+    questions = [
+        "What track is this?",
+        "Name the race track.",
+        "Which course is this?"
+    ]
+    for q in questions:
+        qa_pairs.append({
+            "question": q,
+            "answer": str(track_name),
+            "image_file": image_rel_path
+        })
     if not ego_kart:
         return qa_pairs
 
-    # Relative Position Logic
+    # --- RELATIVE POSITION LOGIC ---
     ego_x, ego_y = ego_kart["center"]
     
-    # Counters
     left_count = 0
     right_count = 0
     front_count = 0
-    back_count = 0
-
+    back_count = 0  # Changed variable name to match vocab
 
     for k in karts:
         if k["instance_id"] == ego_kart["instance_id"]:
@@ -332,52 +306,172 @@ def generate_qa_pairs(info_path: str, view_index: int, img_width: int = 150, img
         kx, ky = k["center"]
         k_name = k["kart_name"]
         
+        # 1. Horizontal
         h_pos = "left" if kx < ego_x else "right"
         if h_pos == "left": left_count += 1
         else: right_count += 1
         
+        # 2. Vertical: STANDARD LOGIC + "BACK" VOCABULARY
+        # ky < ego_y (Higher in image) -> "front" (Further away)
+        # ky > ego_y (Lower in image) -> "back" (Closer)
         v_pos = "front" if ky < ego_y else "back"
         if v_pos == "front": front_count += 1
         else: back_count += 1
 
+        # Q4: Specific Relative (Augmented)
         qa_pairs.append({
             "question": f"Is {k_name} to the left or right of the ego car?",
             "answer": h_pos,
             "image_file": image_rel_path
         })
+        
+        # Use "back" in the question text to match vocabulary
         qa_pairs.append({
-            "question": f"Is {k_name} in front of or back the ego car?",
-            "answer": v_pos,  # Returns "front" or "back"
+            "question": f"Is {k_name} in front of or behind the ego car?",
+            "answer": v_pos,  # "front" or "back"
             "image_file": image_rel_path
         })
+        
+        # Q5: Combined Position (Format: "front and left")
         qa_pairs.append({
             "question": f"Where is {k_name} relative to the ego car?",
-            "answer": f"{v_pos} and {h_pos}", 
+            "answer": f"{v_pos} and {h_pos}",  # CRITICAL FORMAT FIX
             "image_file": image_rel_path
         })
 
-    qa_pairs.append({
-        "question": "How many karts are to the left of the ego car?",
-        "answer": str(left_count),
-        "image_file": image_rel_path
-    })
-    qa_pairs.append({
-        "question": "How many karts are to the right of the ego car?",
-        "answer": str(right_count),
-        "image_file": image_rel_path
-    })
-    qa_pairs.append({
-        "question": "How many karts are in front of the ego car?",
-        "answer": str(front_count),
-        "image_file": image_rel_path
-    })
-    qa_pairs.append({
-        "question": "How many karts are back the ego car?",
-        "answer": str(back_count),
-        "image_file": image_rel_path
-    })
+    # --- Q6: Counting Relative (Augmented) ---
+    qa_pairs.append({"question": "How many karts are to the left of the ego car?", "answer": str(left_count), "image_file": image_rel_path})
+    qa_pairs.append({"question": "How many karts are to the right of the ego car?", "answer": str(right_count), "image_file": image_rel_path})
+    qa_pairs.append({"question": "How many karts are in front of the ego car?", "answer": str(front_count), "image_file": image_rel_path})
+    qa_pairs.append({"question": "How many karts are behind the ego car?", "answer": str(back_count), "image_file": image_rel_path})
 
     return qa_pairs
+
+    # if not ego_kart:
+    #     return qa_pairs
+    # ego_x, ego_y = ego_kart["center"]
+
+    # distances = []
+    # for k in karts:
+    #     if k["instance_id"] == ego_kart["instance_id"]:
+    #         continue
+            
+    #     kx, ky = k["center"]
+    #     # Calculate Euclidean distance squared (faster than sqrt)
+    #     distance_sq = (kx - ego_x)**2 + (ky - ego_y)**2
+    #     distances.append({"kart_name": k["kart_name"], "distance_sq": distance_sq})
+        
+    # if not distances:
+    #     return qa_pairs
+        
+    # # Find nearest and farthest kart names
+    # nearest_kart = min(distances, key=lambda d: d["distance_sq"])["kart_name"]
+    # farthest_kart = max(distances, key=lambda d: d["distance_sq"])["kart_name"]
+
+    # # Q1: Ego car Identity
+    # if ego_kart:
+    #     qa_pairs.append({
+    #         "question": "What kart is the ego car?",
+    #         "answer": str(ego_kart["kart_name"]),
+    #         "image_file": image_rel_path
+    #     })
+
+    # # Q2: Total Karts
+    # qa_pairs.append({
+    #     "question": "How many karts are there in the scenario?",
+    #     "answer": str(len(karts)),
+    #     "image_file": image_rel_path
+    # })
+
+    # # Q3: Track Name
+    # qa_pairs.append({
+    #     "question": "What track is this?",
+    #     "answer": str(track_name),
+    #     "image_file": image_rel_path
+    # })
+
+    # # New Q6: Nearest Kart
+    # qa_pairs.append({
+    #     "question": "Which kart is the closest to the ego car?",
+    #     "answer": nearest_kart,
+    #     "image_file": image_rel_path
+    # })
+
+    # # New Q7: Farthest Kart
+    # qa_pairs.append({
+    #     "question": "Which kart is the farthest from the ego car?",
+    #     "answer": farthest_kart,
+    #     "image_file": image_rel_path
+    # })
+
+    # if not ego_kart:
+    #     return qa_pairs
+
+    # # Relative Position Logic
+    # ego_x, ego_y = ego_kart["center"]
+    
+    # # Counters
+    # left_count = 0
+    # right_count = 0
+    # front_count = 0
+    # back_count = 0
+
+
+    # for k in karts:
+    #     if k["instance_id"] == ego_kart["instance_id"]:
+    #         continue
+            
+    #     kx, ky = k["center"]
+    #     k_name = k["kart_name"]
+        
+    #     h_pos = "left" if kx < ego_x else "right"
+    #     if h_pos == "left": left_count += 1
+    #     else: right_count += 1
+        
+    #     v_pos = "front" if ky < ego_y else "back"
+    #     if v_pos == "front": front_count += 1
+    #     else: back_count += 1
+
+    #     qa_pairs.append({
+    #         "question": f"Is {k_name} to the left or right of the ego car?",
+    #         "answer": h_pos,
+    #         "image_file": image_rel_path
+    #     })
+    #     qa_pairs.append({
+    #         "question": f"Is {k_name} in front of or back the ego car?",
+    #         "answer": v_pos,  # Returns "front" or "back"
+    #         "image_file": image_rel_path
+    #     })
+    #     qa_pairs.append({
+    #         "question": f"Where is {k_name} relative to the ego car?",
+    #         "answer": f"{v_pos} and {h_pos}", 
+    #         "image_file": image_rel_path
+    #     })
+
+    # qa_pairs.append({
+    #     "question": "How many karts are to the left of the ego car?",
+    #     "answer": str(left_count),
+    #     "image_file": image_rel_path
+    # })
+    # qa_pairs.append({
+    #     "question": "How many karts are to the right of the ego car?",
+    #     "answer": str(right_count),
+    #     "image_file": image_rel_path
+    # })
+    # qa_pairs.append({
+    #     "question": "How many karts are in front of the ego car?",
+    #     "answer": str(front_count),
+    #     "image_file": image_rel_path
+    # })
+    # qa_pairs.append({
+    #     "question": "How many karts are back the ego car?",
+    #     "answer": str(back_count),
+    #     "image_file": image_rel_path
+    # })
+
+    # return qa_pairs
+
+
 def generate_data(data_dir: str = "data/train", output_file: str = "data/train/train_qa_pairs.json"):
     """
     Bulk generate QA pairs for all files in a directory.
