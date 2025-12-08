@@ -248,14 +248,14 @@ def generate_qa_pairs(info_path: str, view_index: int, img_width: int = 150, img
 
     # 4. Relative position questions for each kart
     # Is {kart_name} to the left or right of the ego car?
-    # Is {kart_name} in front of or behind the ego car?
+    # Is {kart_name} in front of or back the ego car?
     # Where is {kart_name} relative to the ego car?
 
     # 5. Counting questions
     # How many karts are to the left of the ego car?
     # How many karts are to the right of the ego car?
     # How many karts are in front of the ego car?
-    # How many karts are behind the ego car?
+    # How many karts are back the ego car?
 
      # get the paths right
     path_obj = Path(info_path)
@@ -306,7 +306,7 @@ def generate_qa_pairs(info_path: str, view_index: int, img_width: int = 150, img
     left_count = 0
     right_count = 0
     front_count = 0
-    behind_count = 0
+    back_count = 0
 
 
     for k in karts:
@@ -320,9 +320,9 @@ def generate_qa_pairs(info_path: str, view_index: int, img_width: int = 150, img
         if h_pos == "left": left_count += 1
         else: right_count += 1
         
-        v_pos = "front" if ky < ego_y else "behind"
+        v_pos = "front" if ky < ego_y else "back"
         if v_pos == "front": front_count += 1
-        else: behind_count += 1
+        else: back_count += 1
 
         qa_pairs.append({
             "question": f"Is {k_name} to the left or right of the ego car?",
@@ -330,8 +330,8 @@ def generate_qa_pairs(info_path: str, view_index: int, img_width: int = 150, img
             "image_file": image_rel_path
         })
         qa_pairs.append({
-            "question": f"Is {k_name} in front of or behind the ego car?",
-            "answer": v_pos,  # Returns "front" or "behind"
+            "question": f"Is {k_name} in front of or back the ego car?",
+            "answer": v_pos,  # Returns "front" or "back"
             "image_file": image_rel_path
         })
         qa_pairs.append({
@@ -357,8 +357,8 @@ def generate_qa_pairs(info_path: str, view_index: int, img_width: int = 150, img
         "image_file": image_rel_path
     })
     qa_pairs.append({
-        "question": "How many karts are behind the ego car?",
-        "answer": str(behind_count),
+        "question": "How many karts are back the ego car?",
+        "answer": str(back_count),
         "image_file": image_rel_path
     })
 
