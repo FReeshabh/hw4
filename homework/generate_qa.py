@@ -336,8 +336,7 @@ def generate_qa_pairs(info_path: str, view_index: int, img_width: int = 150, img
         })
         qa_pairs.append({
             "question": f"Where is {k_name} relative to the ego car?",
-            # Standard Format: Space separator (e.g., "front right")
-            "answer": f"{v_pos} {h_pos}", 
+            "answer": f"{v_pos} and {h_pos}", 
             "image_file": image_rel_path
         })
 
